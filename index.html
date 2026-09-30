@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quantum Orbital Explorer</title>
+<style>
+:root{--bg:#05070d;--pn:#0d1424;--ln:#1f2c48;--tx:#dce6ff;--mu:#8596bf;--ac:#6cc6ff}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 30% 0,#111b36,var(--bg) 60%);color:var(--tx);font:14px/1.5 "Segoe UI",system-ui,sans-serif}
+header{padding:18px 20px 6px}
+h1{margin:0;font:600 24px/1.2 Georgia,"Times New Roman",serif}
+h1 span{color:var(--ac)}
+header p{margin:4px 0 0;color:var(--mu);max-width:85ch}
+.eqs{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;padding:8px 20px 0}
+.eq{font:15px/1.7 Georgia,"Cambria Math",serif;background:#0a101d;border-left:3px solid var(--ac);padding:4px 10px;border-radius:0 6px 6px 0}
+main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;padding:10px 20px 24px}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--pn);border:1px solid var(--ln);border-radius:10px;padding:12px}
+.card h3{margin:8px 0;font:600 15px Georgia,serif;color:var(--ac)}
+.card h3:first-child{margin-top:0}
+canvas{width:100%;display:block;border-radius:6px;background:#04060c}
+#c3{height:min(62vh,540px);cursor:grab;touch-action:none}#c2{height:250px}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+button,select{background:#14203a;color:var(--tx);border:1px solid var(--ln);border-radius:6px;padding:5px 9px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--ac)}button.on{background:var(--ac);color:#04121f;border-color:var(--ac)}
+button:disabled{opacity:.2;cursor:default}
+#pt{display:grid;grid-template-columns:repeat(18,1fr);gap:2px}
+#pt button{padding:3px 0;font-size:11px;min-width:0;border-bottom-width:3px}
+.bs{border-bottom-color:#ff5a5f}.bp{border-bottom-color:#06d6a0}.bd{border-bottom-color:#ffd166}
+#grid{display:grid;grid-template-columns:auto repeat(10,1fr);gap:3px;align-items:center;text-align:center}
+#grid button{padding:4px 0;min-width:0;font-size:12px}
+label{color:var(--mu);display:flex;gap:5px;align-items:center}
+input[type=range]{accent-color:var(--ac);width:130px}
+#info{max-height:220px;overflow:auto;font-size:13px}
+#info div{display:flex;gap:8px;align-items:baseline;padding:2px 0;border-bottom:1px solid #16213a}
+#info i{width:10px;height:10px;border-radius:50%;flex:none}
+.small{color:var(--mu);font-size:12.5px}
+</style></head><body>
+<header>
+  <h1 id="h"></h1>
+  <p>Each dot is one possible position of the electron, drawn at random from the probability density |ψ|². Drag to rotate, scroll to zoom. Pick an atom or any orbitals below.</p>
+</header>
+<section class="eqs">
+  <div class="eq">ψ<sub>nlm</sub>(r,θ,φ) = R<sub>nl</sub>(r) · Y<sub>lm</sub>(θ,φ)</div>
+  <div class="eq">R<sub>nl</sub>(r) = N ρ<sup>l</sup> e<sup>−ρ/2</sup> L<sup>2l+1</sup><sub>n−l−1</sub>(ρ), ρ = 2Zr/(n a₀)</div>
+  <div class="eq">P(r) = r² |R<sub>nl</sub>(r)|², ∫ P(r) dr = 1</div>
+  <div class="eq">E<sub>n</sub> = −13.6 eV · Z²/n² · radial nodes = n−l−1 · angular nodes = l</div>
+</section>
+<main>
+<div class="col">
+  <div class="card">
+    <div class="row">
+      <button id="v3" class="on">3D cloud</button><button id="vs">Cross-section (see nodes clearly)</button>
+      <select id="pl"><option value="0">plane y = 0</option><option value="1">plane z = 0</option><option value="2">plane x = 0</option></select>
+    </div>
+    <canvas id="c3"></canvas>
+    <p class="small" id="cap"></p>
+  </div>
+  <div class="card">
+    <h3>Periodic table (Z = 1 to 36): click an atom</h3>
+    <div id="pt"></div>
+    <h3>Orbitals (hydrogen-like): choose a type, then click n</h3>
+    <div class="row" id="tabs"></div>
+    <div id="grid"></div>
+    <div class="row">
+      <label><input type="checkbox" id="ov" checked>Overlay several</label>
+      <label><input type="checkbox" id="nd" checked>Show nodes</label>
+      <label><input type="checkbox" id="ph">Show phase (±ψ)</label>
+      <label><input type="checkbox" id="an" checked>Animate</label>
+    </div>
+    <div class="row">
+      <label>Dots per orbital <input type="range" id="np" min="1000" max="12000" step="500" value="4000"></label>
+      <label>Z (orbital mode) <input type="range" id="zs" min="1" max="5" step="1" value="1" style="width:80px"><b id="zv">1</b></label>
+    </div>
+  </div>
+</div>
+<div class="col">
+  <div class="card" id="ai"></div>
+  <div class="card">
+    <h3>Radial distribution</h3>
+    <canvas id="c2"></canvas>
+    <div class="row">
+      <select id="gm"><option value="P">P(r) = r²|R|²</option><option value="R2">|R(r)|²</option><option value="R">R(r) with sign</option></select>
+      <label><input type="checkbox" id="nm" checked>Normalize heights</label>
+    </div>
+  </div>
+  <div class="card">
+    <h3>What is a node?</h3>
+    <p class="small" style="margin:0">A node is a place where ψ = 0, so the electron is never found there. Radial nodes are spherical shells (n−l−1 of them). Angular nodes are planes or cones (l of them). In the cross-section view, white lines are nodes and the dark gaps around them are empty space. Nodal planes of p orbitals and some d and f orbitals are also drawn in the 3D view.</p>
+  </div>
+  <div class="card"><h3>Selected orbitals</h3><div id="info"></div>
+    <p class="small" style="margin-bottom:0">Real orbital shapes: p ∝ x, y, z · d ∝ 3z²−r², xz, yz, xy, x²−y² · f ∝ z(5z²−3r²), x(5z²−r²), y(5z²−r²), xyz, z(x²−y²), x(x²−3y²), y(3x²−y²). Lengths in Bohr radii a₀.</p>
+  </div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const PAL=['#ff5a5f','#4cc9f0','#ffd166','#06d6a0','#b388ff','#ff8c42','#9be564','#f72585','#00b4d8','#e9ff70','#ff99c8','#7ae7c7','#c77dff','#ffa69e','#90be6d','#48bfe3','#f9c74f','#f3722c','#a0c4ff','#fdffb6'];
+const A=(n,l,f,pl=[])=>({n,l,f,pl});
+const ANG=[A('s',0,()=>1),
+ A('px',1,(x,y,z)=>x,[0]),A('py',1,(x,y,z)=>y,[1]),A('pz',1,(x,y,z)=>z,[2]),
+ A('dz²',2,(x,y,z)=>3*z*z-1),A('dxz',2,(x,y,z)=>x*z,[0,2]),A('dyz',2,(x,y,z)=>y*z,[1,2]),A('dxy',2,(x,y,z)=>x*y,[0,1]),A('dx²−y²',2,(x,y,z)=>x*x-y*y),
+ A('fz³',3,(x,y,z)=>z*(5*z*z-3)),A('fxz²',3,(x,y,z)=>x*(5*z*z-1)),A('fyz²',3,(x,y,z)=>y*(5*z*z-1)),A('fxyz',3,(x,y,z)=>x*y*z,[0,1,2]),
+ A('fz(x²−y²)',3,(x,y,z)=>z*(x*x-y*y)),A('fx(x²−3y²)',3,(x,y,z)=>x*(x*x-3*y*y)),A('fy(3x²−y²)',3,(x,y,z)=>y*(3*x*x-y*y))];
+const IDX=[[0],[1,2,3],[4,5,6,7,8],[9,10,11,12,13,14,15]],LT='spdf';
+const NM='Hydrogen,Helium,Lithium,Beryllium,Boron,Carbon,Nitrogen,Oxygen,Fluorine,Neon,Sodium,Magnesium,Aluminium,Silicon,Phosphorus,Sulfur,Chlorine,Argon,Potassium,Calcium,Scandium,Titanium,Vanadium,Chromium,Manganese,Iron,Cobalt,Nickel,Copper,Zinc,Gallium,Germanium,Arsenic,Selenium,Bromine,Krypton'.split(',');
+const SY='H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr'.split(' ');
+const ORD=[[1,0,2],[2,0,2],[2,1,6],[3,0,2],[3,1,6],[4,0,2],[3,2,10],[4,1,6]];
+let mode='orb',AZ=3,CF=[],tab=0,vw='cloud',sel=[],act=[],pts=[],ent=[],RC={},yaw=.6,pit=.35,zoom=1,dpr=1,viewR=10,dirty=1;
+const sup=n=>String(n).replace(/\d/g,d=>'⁰¹²³⁴⁵⁶⁷⁸⁹'[d]);
+const mix=h=>{const v=parseInt(h.slice(1),16);return`rgb(${[v>>16,v>>8&255,v&255].map(c=>c+(255-c)*.6|0)})`};
+const SC=document.createElement('canvas');SC.width=SC.height=240;const sctx=SC.getContext('2d');
+
+/* ---------- atoms: configuration, position, Slater effective charge ---------- */
+function cfg(Z){let c=[],L=Z;for(const[n,l,m]of ORD){if(L<=0)break;const k=Math.min(L,m);L-=k;c.push([n,l,k])}
+  if(Z==24||Z==29){c.find(e=>e[0]==4&&!e[1])[2]--;c.find(e=>e[1]==2)[2]++} // Cr and Cu exceptions
+  return c.sort((a,b)=>a[0]-b[0]||a[1]-b[1])}
+function pos(Z){const p=Z<=2?1:Z<=10?2:Z<=18?3:4,i=Z-[0,1,3,11,19][p];
+  const g=p==1?(i?18:1):p<4?(i<2?i+1:i+11):i+1;return[p,g,Z==2?'s':g<=2?'s':g<=12?'d':'p']}
+function zeff(Z,c,n,l){let S=0;for(const[n2,l2,k]of c){const m=(n2==n&&l2==l)?k-1:k;
+  if(l<2){if(n2==n&&l2<2)S+=m*(n==1?.30:.35);else if(n2==n-1)S+=m*.85;else if(n2<n-1)S+=m}
+  else if(n2==n&&l2==l)S+=m*.35;else if(n2<n||(n2==n&&l2<l))S+=m}
+  return Z-S}
+
+/* ---------- physics ---------- */
+function lag(k,a,x){let p=1,q=1+a-x;if(!k)return 1;for(let j=1;j<k;j++)[p,q]=[q,((2*j+1+a-x)*q-(j+a)*p)/(j+1)];return q}
+const Rnl=(n,l,z,r)=>{const p=2*z*r/n;return p**l*Math.exp(-p/2)*lag(n-l-1,2*l+1,p)};
+function getRad(n,l,z){
+  const key=n+'_'+l+'_'+z;if(RC[key])return RC[key];
+  const M=1500,rm=(2*n*n+6*n+4)/z,dr=rm/M,R=new Float64Array(M+1),cdf=new Float64Array(M+1);
+  for(let i=0;i<=M;i++)R[i]=Rnl(n,l,z,i*dr);
+  let s=0;for(let i=0;i<=M;i++)s+=R[i]*R[i]*(i*dr)**2*dr;
+  const k=1/Math.sqrt(s);
+  for(let i=0;i<=M;i++){R[i]*=k;if(i)cdf[i]=cdf[i-1]+R[i]*R[i]*(i*dr)**2*dr}
+  const nodes=[];for(let i=1;i<=M;i++)if(R[i-1]*R[i]<0)nodes.push((i-1+R[i-1]/(R[i-1]-R[i]))*dr);
+  return RC[key]={M,rm,dr,R,cdf,nodes};
+}
+const rv=(d,r)=>{const q=r/d.dr,i=q|0;return i>=d.M?0:d.R[i]+(d.R[i+1]-d.R[i])*(q-i)};
+// angular normalisation (∫|Y|²dΩ = 1) and max of f² for rejection sampling
+function angInit(a){if(a.k)return;let s=0,m=0;const nt=120,np=240;
+  for(let i=0;i<nt;i++){const th=(i+.5)/nt*Math.PI,st=Math.sin(th),ct=Math.cos(th);
+    for(let j=0;j<np;j++){const ph=(j+.5)/np*6.2832,v=a.f(st*Math.cos(ph),st*Math.sin(ph),ct),q=v*v;s+=q*st;if(q>m)m=q}}
+  a.k=1/Math.sqrt(s*(Math.PI/nt)*(6.2832/np));a.fm=m*1.02}
+// Monte-Carlo: radius from radial CDF, direction from |Y|² by rejection
+function sample(it,P,i){
+  const d=it.rad,a=it.a,u=Math.random()*d.cdf[d.M];let lo=0,hi=d.M;
+  while(hi-lo>1){const m=lo+hi>>1;d.cdf[m]<u?lo=m:hi=m}
+  const r=(lo+(u-d.cdf[lo])/(d.cdf[hi]-d.cdf[lo]||1))*d.dr;let x,y,z,v=1;
+  for(;;){z=2*Math.random()-1;const p=6.2832*Math.random(),q=Math.sqrt(1-z*z);x=q*Math.cos(p);y=q*Math.sin(p);
+    if(!a.l)break;v=a.f(x,y,z);if(Math.random()*a.fm<v*v)break}
+  P.x[i]=x*r;P.y[i]=y*r;P.z[i]=z*r;P.s[i]=(d.R[hi]<0?-1:1)*(v<0?-1:1);
+}
+const mk=(n,o,z)=>({n,o,z,c:PAL.find(p=>!sel.some(s=>s.c==p))||PAL[0]});
+function refresh(){
+  act=sel;act.forEach(it=>{it.a=ANG[it.o];angInit(it.a);it.l=it.a.l;it.rad=getRad(it.n,it.l,it.z);it.rgb=[1,3,5].map(i=>parseInt(it.c.slice(i,i+2),16))});
+  const N=Math.min(+$('np').value,45000/sel.length|0);
+  pts=act.map(it=>{const P={x:new Float32Array(N),y:new Float32Array(N),z:new Float32Array(N),s:new Int8Array(N)};
+    for(let i=0;i<N;i++)sample(it,P,i);return P});
+  ent=[];const seen={};
+  act.forEach(it=>{const k=it.n+'_'+it.l+'_'+it.z;if(!seen[k]){seen[k]=1;ent.push({d:it.rad,nm:it.n+LT[it.l],c:it.c})}});
+  dirty=1;ui();
+}
+function setAtom(Z){mode='atom';AZ=Z;CF=cfg(Z);sel=[];
+  CF.forEach(([n,l,k],si)=>{const z=+zeff(Z,CF,n,l).toFixed(2);IDX[l].forEach(o=>sel.push({n,o,z,c:PAL[si]}))});refresh()}
+
+/* ---------- UI ---------- */
+function bGrid(){
+  let h='<span></span>'+[...Array(10)].map((_,i)=>`<b>${i+1}</b>`).join('');
+  IDX[tab].forEach(o=>{h+=`<b>${ANG[o].n}</b>`;for(let n=1;n<=10;n++){const it=sel.find(s=>s.n==n&&s.o==o);
+    h+=`<button data-n="${n}" data-o="${o}" ${n<=ANG[o].l?'disabled':''} ${it?`style="background:${it.c};color:#000;border-color:${it.c}"`:''}>${it?'✓':'·'}</button>`}});
+  $('grid').innerHTML=h;
+  $('tabs').innerHTML=LT.split('').map((t,i)=>`<button data-t="${i}" class="${i==tab?'on':''}">${t} orbitals</button>`).join('');
+}
+const row=(c,t,z,n,l)=>`<div><i style="background:${c}"></i><b>${t}</b><span>E ≈ ${(-13.6*z*z/n/n).toFixed(1)} eV · Z<sub>eff</sub> ${z} · ${n-l-1} radial node${n-l==2?'':'s'} · ${l} angular node${l==1?'':'s'}</span></div>`;
+function ui(){
+  let t,ai,rows;
+  if(mode=='atom'){const[p,g,b]=pos(AZ);t=`${NM[AZ-1]} (${SY[AZ-1]}) atom`;
+    ai=`<b style="font-size:16px">${NM[AZ-1]} (${SY[AZ-1]})</b><br>Atomic number Z = ${AZ} (${AZ} protons, ${AZ} electrons)<br>Period ${p}, group ${g}, ${b}-block<br>Electron configuration: <b>${CF.map(([n,l,k])=>n+LT[l]+sup(k)).join(' ')}</b><br><span class="small">Each subshell is drawn with all its orbitals and a Slater effective charge Z<sub>eff</sub>, which is an approximation.</span>`;
+    rows=CF.map(([n,l,k],si)=>row(PAL[si],n+LT[l]+sup(k),+zeff(AZ,CF,n,l).toFixed(2),n,l)).join('')}
+  else{const L=[...new Set(sel.map(s=>s.l))].sort().map(l=>LT[l]);
+    t=(L.length>1?L.slice(0,-1).join(', ')+' and '+L[L.length-1]:L[0])+' orbital'+(sel.length>1?'s':'');
+    ai=`<b style="font-size:16px">Hydrogen-like orbitals</b><br>One electron around a nucleus of charge Z = ${$('zs').value}. Choose orbitals below, or click an atom in the periodic table.`;
+    rows=sel.map(s=>row(s.c,s.n+ANG[s.o].n,s.z,s.n,s.l)).join('')}
+  $('h').innerHTML=`Visualization of the <span>${t}</span>`;$('ai').innerHTML=ai;$('info').innerHTML=rows;bGrid();
+  document.querySelectorAll('#pt button').forEach(b=>b.classList.toggle('on',mode=='atom'&&+b.dataset.z==AZ));
+}
+function setView(v){vw=v;dirty=1;$('v3').className=v=='cloud'?'on':'';$('vs').className=v=='slice'?'on':'';
+  $('cap').textContent=v=='cloud'?'3D probability cloud. Dashed shells and discs are nodes (ψ = 0).':'A slice through the nucleus: brightness is probability. White lines are nodes, and dark gaps are empty space where the probability is zero.'}
+function build(){let h='';
+  for(let Z=1;Z<=36;Z++){const[p,g,b]=pos(Z);h+=`<button data-z="${Z}" title="${NM[Z-1]}, Z = ${Z}" class="b${b}" style="grid-column:${g};grid-row:${p}">${SY[Z-1]}</button>`}
+  $('pt').innerHTML=h;setView('cloud')}
+$('pt').onclick=e=>{const b=e.target.closest('button');if(b)setAtom(+b.dataset.z)};
+$('tabs').onclick=e=>{const b=e.target.closest('button');if(b){tab=+b.dataset.t;bGrid()}};
+$('grid').onclick=e=>{const b=e.target.closest('button');if(!b||b.disabled)return;
+  const n=+b.dataset.n,o=+b.dataset.o,z=+$('zs').value;
+  if(mode=='atom'){mode='orb';sel=[]}
+  const k=sel.findIndex(s=>s.n==n&&s.o==o);
+  if(!$('ov').checked)sel=[mk(n,o,z)];else if(k>=0){if(sel.length>1)sel.splice(k,1)}else sel.push(mk(n,o,z));
+  refresh()};
+$('zs').oninput=e=>{$('zv').textContent=e.target.value;if(mode=='orb'){sel=sel.map(s=>({...s,z:+e.target.value}));refresh()}};
+$('np').oninput=refresh;$('v3').onclick=()=>setView('cloud');$('vs').onclick=()=>setView('slice');
+['nd','ph','pl'].forEach(id=>$(id).onchange=()=>dirty=1);
+
+/* ---------- drawing ---------- */
+function pill(g,t,x,y,c,fs=12){ // readable label on a dark background
+  g.font=fs*dpr+'px "Segoe UI",sans-serif';const w=g.measureText(t).width+10*dpr,h=(fs+6)*dpr;
+  g.setLineDash([]);g.fillStyle='rgba(4,6,12,.9)';g.strokeStyle=c;g.lineWidth=dpr;
+  g.beginPath();g.roundRect(x,y-h/2,w,h,4*dpr);g.fill();g.stroke();
+  g.fillStyle='#fff';g.textBaseline='middle';g.fillText(t,x+5*dpr,y);g.textBaseline='alphabetic'}
+function slice(){ // probability heat map on a plane through the nucleus
+  const N=240,pl=+$('pl').value,nd=$('nd').checked,D=[],Sg=[],MX=[];
+  act.forEach(it=>{const d=new Float32Array(N*N),s=new Int8Array(N*N),a=it.a;let m=0;
+    for(let j=0;j<N;j++)for(let i=0;i<N;i++){
+      const u=(i/(N-1)*2-1)*viewR,v=(1-j/(N-1)*2)*viewR,x=pl==2?0:u,y=pl==0?0:pl==1?v:u,z=pl==1?0:v;
+      const r=Math.sqrt(x*x+y*y+z*z)||1e-9,ps=rv(it.rad,r)*a.k*a.f(x/r,y/r,z/r),q=j*N+i;
+      d[q]=ps*ps;s[q]=Math.abs(ps)>1e-9?(ps>0?1:-1):0;if(d[q]>m)m=d[q]}
+    D.push(d);Sg.push(s);MX.push(m||1)});
+  const im=sctx.createImageData(N,N),o=im.data;
+  for(let q=0;q<N*N;q++){let w=0,R=0,G=0,B=0,hit=0;
+    act.forEach((it,k)=>{const t=D[k][q]/MX[k];w+=t;R+=it.rgb[0]*t;G+=it.rgb[1]*t;B+=it.rgb[2]*t;
+      if(nd){const s=Sg[k];if(s[q]&&((q%N&&s[q-1]&&s[q]!=s[q-1])||(q>=N&&s[q-N]&&s[q]!=s[q-N])))hit=1}});
+    const b=w>0?Math.min(1,Math.pow(w,.4))/w:0,p=q*4; // colour = weighted mix of orbital colours
+    o[p]=R*b;o[p+1]=G*b;o[p+2]=B*b;o[p+3]=255;if(hit)o[p]=o[p+1]=o[p+2]=255}
+  sctx.putImageData(im,0,0)}
+function draw3(){
+  const c=$('c3'),g=c.getContext('2d'),W=c.width,H=c.height,ox=W/2,oy=H/2,sl=vw=='slice';
+  g.globalAlpha=1;g.setLineDash([]);g.fillStyle='#04060c';g.fillRect(0,0,W,H);
+  viewR=Math.max(...act.map(it=>it.rad.rm))*.5/zoom;
+  const S=Math.min(W,H)/2/viewR,cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pit),sp=Math.sin(pit);
+  const pr=(x,y,z)=>{const x1=x*cy+z*sy,z1=-x*sy+z*cy;return[ox+x1*S,oy-(y*cp-z1*sp)*S]};
+  if(sl){if(dirty){slice();dirty=0}g.imageSmoothingEnabled=true;const sd=Math.min(W,H);g.drawImage(SC,(W-sd)/2,(H-sd)/2,sd,sd)}
+  else{const ph=$('ph').checked,sz=1.8*dpr,Nn=pts[0].s.length;g.globalAlpha=.75;
+    for(let s0=0;s0<Nn;s0+=400)act.forEach((it,k)=>{const P=pts[k],e=Math.min(s0+400,Nn);
+      for(const pass of ph?[1,-1]:[0]){g.fillStyle=pass<0?mix(it.c):it.c;
+        for(let i=s0;i<e;i++){if(pass&&(P.s[i]>0)!=(pass>0))continue;const[x,y]=pr(P.x[i],P.y[i],P.z[i]);g.fillRect(x,y,sz,sz)}}});
+    g.globalAlpha=1}
+  if($('nd').checked){
+    ent.forEach((e,k)=>{let last=-99;e.d.nodes.forEach(r=>{const R=r*S;if(R>Math.min(W,H)/2-4)return;
+      if(!sl){g.setLineDash([6*dpr,4*dpr]);g.strokeStyle=e.c;g.lineWidth=1.4*dpr;g.beginPath();g.arc(ox,oy,R,0,7);g.stroke()}
+      if(R-last>26*dpr){const a=-.7-k*.45;pill(g,`node ${r.toFixed(1)} a₀`,ox+R*Math.cos(a),oy+R*Math.sin(a),e.c);last=R}})});
+    if(!sl&&act.length<=6)act.forEach(it=>it.a.pl.forEach(ax=>{const rr=viewR*.85;g.beginPath();
+      for(let j=0;j<=64;j++){const p=j/64*6.2832,q=[Math.cos(p)*rr,Math.sin(p)*rr];q.splice(ax,0,0);const[x,y]=pr(...q);j?g.lineTo(x,y):g.moveTo(x,y)}
+      g.globalAlpha=.06;g.fillStyle=it.c;g.fill();g.globalAlpha=1;g.setLineDash([6*dpr,4*dpr]);g.strokeStyle=it.c;g.lineWidth=1.4*dpr;g.stroke();
+      const q=[rr*.72,rr*.72];q.splice(ax,0,0);const[lx,ly]=pr(...q);pill(g,`node: plane ${'xyz'[ax]} = 0`,lx,ly,it.c)}))}
+  if(sl)pill(g,'slice through the nucleus: '+['y = 0','z = 0','x = 0'][+$('pl').value],10*dpr,18*dpr,'#6cc6ff');
+  g.fillStyle='#fff';g.beginPath();g.arc(ox,oy,3*dpr,0,7);g.fill();
+}
+function drawG(){
+  const c=$('c2'),g=c.getContext('2d'),W=c.width,H=c.height,m=$('gm').value;
+  const L=14*dpr,B=26*dpr,T=20*dpr,Rt=12*dpr,xm=viewR,N=400;
+  g.setLineDash([]);g.globalAlpha=1;g.fillStyle='#04060c';g.fillRect(0,0,W,H);
+  const f=(d,r)=>{const R=rv(d,r);return m=='P'?R*R*r*r:m=='R2'?R*R:R};
+  const cur=ent.map(e=>[...Array(N+1)].map((_,i)=>f(e.d,xm*i/N)));
+  const mx=cur.map(a=>Math.max(...a.map(Math.abs))||1),gmx=Math.max(...mx),nm=$('nm').checked;
+  const y0=m=='R'?(H-B+T)/2:H-B,amp=m=='R'?(H-B-T)/2:H-B-T,X=r=>L+(W-L-Rt)*r/xm;
+  g.strokeStyle='#3a4a70';g.fillStyle='#8596bf';g.font=11*dpr+'px sans-serif';g.lineWidth=dpr;
+  g.beginPath();g.moveTo(L,y0);g.lineTo(W-Rt,y0);g.moveTo(L,T);g.lineTo(L,H-B);g.stroke();
+  for(let i=0;i<=5;i++){const r=xm*i/5;g.fillText(r>=10?r.toFixed(0):r.toFixed(1),X(r)-8*dpr,H-10*dpr)}
+  g.fillText('r (a₀)',W-50*dpr,H-B-6*dpr);
+  g.fillText({P:'P(r) = r²|R|²',R2:'|R(r)|²',R:'R(r)'}[m],L+8*dpr,T-6*dpr);
+  ent.forEach((e,k)=>{
+    const sc=(nm?1/mx[k]:1/gmx)*.95;g.strokeStyle=g.fillStyle=e.c;g.lineWidth=2*dpr;
+    g.beginPath();cur[k].forEach((v,i)=>{const x=X(xm*i/N),y=y0-v*sc*amp;i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke();
+    if(m!='R'){g.lineTo(X(xm),y0);g.lineTo(X(0),y0);g.globalAlpha=.1;g.fill();g.globalAlpha=1}
+    g.lineWidth=dpr;g.setLineDash([4*dpr,4*dpr]);g.font='bold '+11*dpr+'px sans-serif';
+    e.d.nodes.forEach(r=>{if(r>xm)return;g.beginPath();g.moveTo(X(r),T+10*dpr);g.lineTo(X(r),y0);g.globalAlpha=.5;g.stroke();g.globalAlpha=1;
+      g.fillText('node',X(r)-10*dpr,T+8*dpr+(k%3)*11*dpr)});
+    g.setLineDash([]);g.font='bold '+12*dpr+'px sans-serif';g.fillText(e.nm,W-Rt-(ent.length-k)*34*dpr,T-6*dpr)});
+}
+
+/* ---------- interaction & loop ---------- */
+const cv=$('c3');let drag=null;
+cv.onpointerdown=e=>{drag=[e.clientX,e.clientY];cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing'};
+cv.onpointerup=()=>{drag=null;cv.style.cursor='grab'};
+cv.onpointermove=e=>{if(!drag||vw=='slice')return;yaw+=(e.clientX-drag[0])*.008;pit=Math.max(-1.5,Math.min(1.5,pit+(e.clientY-drag[1])*.008));drag=[e.clientX,e.clientY]};
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.3,Math.min(8,zoom*Math.exp(-e.deltaY*.001)));dirty=1},{passive:false});
+function fit(){dpr=devicePixelRatio||1;['c3','c2'].forEach(id=>{const c=$(id),r=c.getBoundingClientRect();c.width=r.width*dpr;c.height=r.height*dpr});dirty=1}
+function loop(){
+  if($('an').checked&&vw=='cloud'){yaw+=.004;const n=pts[0].s.length,k=Math.ceil(n*.03); // shimmer: re-sample 3% of dots each frame
+    act.forEach((it,j)=>{for(let q=0;q<k;q++)sample(it,pts[j],Math.random()*n|0)})}
+  draw3();drawG();requestAnimationFrame(loop);
+}
+addEventListener('resize',fit);build();fit();setAtom(3);loop();
+</script></body></html>
